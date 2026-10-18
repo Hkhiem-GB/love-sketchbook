@@ -7,7 +7,9 @@
     "dev": "concurrently -k -p \"[{name}]\" -n \"SERVER,CLIENT\" -c \"cyan.bold,magenta.bold\" \"tsx server/index.ts\" \"vite\"",
     "dev:client": "vite",
     "dev:server": "tsx server/index.ts",
-    "build": "tsc && vite build",
+    "build:client": "tsc && vite build",
+    "build:server": "esbuild server/app.ts --bundle --platform=node --format=esm --target=node18 --outfile=api/index.js --external:express --external:cors --external:mongoose --external:dotenv --external:express-rate-limit --external:multer --external:cloudinary --external:qrcode",
+    "build": "npm run build:client && npm run build:server",
     "start": "tsx server/index.ts",
     "preview": "vite preview"
   },

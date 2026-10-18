@@ -1,0 +1,617 @@
+// server/app.ts
+import express from "express";
+import cors from "cors";
+import path3 from "path";
+import fs3 from "fs";
+import rateLimit from "express-rate-limit";
+import mongoose3 from "mongoose";
+
+// server/config/db.ts
+import mongoose from "mongoose";
+import dotenv from "dotenv";
+import path from "path";
+import fs from "fs";
+var envLocal = path.resolve(process.cwd(), ".env.local");
+var envDefault = path.resolve(process.cwd(), ".env");
+if (fs.existsSync(envLocal)) {
+  dotenv.config({ path: envLocal });
+}
+if (fs.existsSync(envDefault)) {
+  dotenv.config({ path: envDefault });
+}
+function getMongoUri() {
+  let uri = process.env.MONGODB_URI || process.env.MONGODBURL || "";
+  if (!uri && fs.existsSync(envLocal)) {
+    const content = fs.readFileSync(envLocal, "utf8");
+    const lines = content.split("\n");
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith("#")) continue;
+      if (trimmed.startsWith("MONGODB_URI=")) uri = trimmed.slice(12).trim();
+      else if (trimmed.startsWith("MONGODBURL:")) uri = trimmed.slice(11).trim();
+      else if (trimmed.startsWith("MONGODB_URI:")) uri = trimmed.slice(12).trim();
+      else if (trimmed.startsWith("MONGODBURL=")) uri = trimmed.slice(11).trim();
+    }
+  }
+  if (!uri) {
+    throw new Error(
+      "MISSING_MONGODB_URI: MONGODB_URI or MONGODBURL is not defined in environment variables or .env.local."
+    );
+  }
+  if (uri.endsWith(".mongodb.net/")) {
+    uri += "love_sketchbook?retryWrites=true&w=majority";
+  } else if (uri.endsWith(".mongodb.net")) {
+    uri += "/love_sketchbook?retryWrites=true&w=majority";
+  }
+  return uri;
+}
+var cachedConn = null;
+async function connectDB() {
+  if (mongoose.connection.readyState === 1) {
+    return mongoose;
+  }
+  if (mongoose.connection.readyState === 2) {
+    await new Promise((resolve) => {
+      mongoose.connection.once("connected", resolve);
+    });
+    return mongoose;
+  }
+  const uri = getMongoUri();
+  const maskedUri = uri.replace(/\/\/([^:]+):([^@]+)@/, "//$1:****@");
+  console.log(`[Database] Connecting to MongoDB Atlas (${maskedUri})...`);
+  try {
+    cachedConn = await mongoose.connect(uri, {
+      serverSelectionTimeoutMS: 8e3,
+      autoIndex: process.env.NODE_ENV !== "production"
+    });
+    console.log(`[Database] Connected successfully to database "${mongoose.connection.name}".`);
+    return cachedConn;
+  } catch (err) {
+    console.error("[Database] Fatal: Unable to connect to MongoDB Atlas:", err.message);
+    throw err;
+  }
+}
+
+// server/routes/giftRoutes.ts
+import { Router } from "express";
+
+// server/models/Gift.ts
+import mongoose2, { Schema } from "mongoose";
+var PhotoSubSchema = new Schema(
+  {
+    id: { type: String, required: true },
+    url: {
+      type: String,
+      required: true,
+      validate: {
+        validator: (v) => !v.startsWith("data:image/"),
+        message: "Base64 image strings are not allowed in MongoDB documents. Images must be hosted externally (ImgBB)."
+      }
+    },
+    caption: { type: String, default: "", maxlength: 100 },
+    rotation: { type: Number, default: 0 },
+    publicId: { type: String, default: "" },
+    displayUrl: { type: String, default: "" },
+    deleteUrl: { type: String, default: "" },
+    width: { type: Number },
+    height: { type: Number },
+    format: { type: String },
+    bytes: { type: Number },
+    order: { type: Number, default: 0 }
+  },
+  { _id: false }
+);
+var GiftSchema = new Schema(
+  {
+    slug: {
+      type: String,
+      required: [true, "Slug is required"],
+      unique: true,
+      trim: true,
+      lowercase: true,
+      index: true,
+      match: [/^[a-z0-9-]+$/, "Slug must only contain lowercase letters, numbers, and hyphens"]
+    },
+    recipient_name: {
+      type: String,
+      required: [true, "Recipient name is required"],
+      trim: true,
+      minlength: [1, "Recipient name cannot be empty"],
+      maxlength: [100, "Recipient name cannot exceed 100 characters"]
+    },
+    sender_name: {
+      type: String,
+      required: [true, "Sender name is required"],
+      trim: true,
+      minlength: [1, "Sender name cannot be empty"],
+      maxlength: [100, "Sender name cannot exceed 100 characters"]
+    },
+    opening_message: {
+      type: String,
+      trim: true,
+      default: "",
+      maxlength: [500, "Opening message cannot exceed 500 characters"]
+    },
+    messages: {
+      type: [String],
+      required: [true, "At least one wish message is required"],
+      validate: [
+        {
+          validator: (arr) => arr.length > 0 && arr.length <= 15,
+          message: "Number of messages must be between 1 and 15"
+        }
+      ]
+    },
+    closing_message: {
+      type: String,
+      trim: true,
+      default: "",
+      maxlength: [500, "Closing message cannot exceed 500 characters"]
+    },
+    photos: {
+      type: [PhotoSubSchema],
+      validate: [
+        {
+          validator: (arr) => arr.length <= 30,
+          message: "Maximum 30 photos allowed per gift"
+        }
+      ],
+      default: []
+    },
+    theme_color: {
+      type: String,
+      default: "#C9757C",
+      maxlength: 20
+    },
+    created_at: {
+      type: Date,
+      default: Date.now
+    },
+    updated_at: {
+      type: Date,
+      default: Date.now
+    }
+  },
+  {
+    timestamps: { createdAt: "created_at", updatedAt: "updated_at" },
+    toJSON: {
+      virtuals: true,
+      transform: (_, ret) => {
+        ret.id = ret._id.toString();
+        delete ret._id;
+        delete ret.__v;
+        return ret;
+      }
+    }
+  }
+);
+var Gift = mongoose2.models.Gift || mongoose2.model("Gift", GiftSchema);
+
+// server/config/cloudinary.ts
+import { v2 as cloudinary } from "cloudinary";
+import fs2 from "fs";
+import path2 from "path";
+var cloudName = process.env.CLOUDINARY_CLOUD_NAME || "";
+var apiKey = process.env.CLOUDINARY_API_KEY || "";
+var apiSecret = process.env.CLOUDINARY_API_SECRET || "";
+var hasIdenticalKeyAndSecret = apiKey && apiSecret && apiKey === apiSecret;
+var isCloudinaryConfigured = Boolean(
+  cloudName && apiKey && apiSecret && cloudName !== "your_cloud_name" && !hasIdenticalKeyAndSecret
+);
+if (hasIdenticalKeyAndSecret) {
+  console.warn(
+    "\n\u26A0\uFE0F  [Storage Warning] CLOUDINARY_API_SECRET \u0111ang b\u1ECB \u0111i\u1EC1n tr\xF9ng v\u1EDBi CLOUDINARY_API_KEY!\n   Tr\xEAn Cloudinary Dashboard, API Secret l\xE0 m\u1ED9t chu\u1ED7i k\xFD t\u1EF1 ng\u1EABu nhi\xEAn (ch\u1EEF v\xE0 s\u1ED1),\n   kh\xE1c v\u1EDBi API Key (d\xE3y s\u1ED1 15 ch\u1EEF s\u1ED1). H\u1EC7 th\u1ED1ng s\u1EBD t\u1EA1m d\xF9ng local storage (/uploads/photos).\n"
+  );
+}
+if (isCloudinaryConfigured) {
+  cloudinary.config({
+    cloud_name: cloudName,
+    api_key: apiKey,
+    api_secret: apiSecret,
+    secure: true
+  });
+  console.log("[Storage] Cloudinary configured successfully.");
+} else {
+  console.log("[Storage] Cloudinary not configured or invalid credentials. Using local server storage (/uploads/photos).");
+}
+function generateUploadSignature(folder = "love_sketchbook") {
+  if (!isCloudinaryConfigured) {
+    throw new Error("Cloudinary is not configured with valid credentials.");
+  }
+  const timestamp = Math.round((/* @__PURE__ */ new Date()).getTime() / 1e3);
+  const paramsToSign = {
+    folder,
+    timestamp
+  };
+  const signature = cloudinary.utils.api_sign_request(paramsToSign, apiSecret);
+  return {
+    signature,
+    timestamp,
+    apiKey,
+    cloudName,
+    folder
+  };
+}
+async function saveLocally(buffer, originalFilename, mimetype) {
+  const uploadsDir2 = path2.resolve(process.cwd(), "uploads", "photos");
+  if (!fs2.existsSync(uploadsDir2)) {
+    fs2.mkdirSync(uploadsDir2, { recursive: true });
+  }
+  const ext = path2.extname(originalFilename) || (mimetype.includes("png") ? ".png" : ".jpg");
+  const filename = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}${ext}`;
+  const filePath = path2.join(uploadsDir2, filename);
+  await fs2.promises.writeFile(filePath, buffer);
+  return {
+    url: `/uploads/photos/${filename}`,
+    publicId: filename,
+    bytes: buffer.length,
+    format: ext.replace(".", "")
+  };
+}
+async function uploadImage(buffer, originalFilename, mimetype) {
+  if (isCloudinaryConfigured) {
+    try {
+      return await new Promise((resolve, reject) => {
+        const uploadStream = cloudinary.uploader.upload_stream(
+          {
+            folder: "love_sketchbook",
+            resource_type: "image"
+          },
+          (error, result) => {
+            if (error || !result) {
+              return reject(error || new Error("Upload to Cloudinary failed"));
+            }
+            resolve({
+              url: result.secure_url,
+              publicId: result.public_id,
+              width: result.width,
+              height: result.height,
+              format: result.format,
+              bytes: result.bytes
+            });
+          }
+        );
+        uploadStream.end(buffer);
+      });
+    } catch (err) {
+      console.warn("[Storage] Cloudinary upload error:", err.message);
+      console.warn("[Storage] Falling back to local storage for this upload...");
+      return await saveLocally(buffer, originalFilename, mimetype);
+    }
+  }
+  return await saveLocally(buffer, originalFilename, mimetype);
+}
+async function deleteImage(publicId) {
+  if (!publicId) return;
+  if (isCloudinaryConfigured) {
+    try {
+      await cloudinary.uploader.destroy(publicId);
+    } catch (err) {
+      console.warn("[Storage] Failed to delete image from Cloudinary:", err.message);
+    }
+  } else {
+    try {
+      const localPath = path2.resolve(process.cwd(), "uploads", "photos", publicId);
+      if (fs2.existsSync(localPath)) {
+        await fs2.promises.unlink(localPath);
+      }
+    } catch (err) {
+      console.warn("[Storage] Failed to delete local image file:", err.message);
+    }
+  }
+}
+
+// server/routes/giftRoutes.ts
+var giftRouter = Router();
+function generateGiftSlug(name) {
+  const prefix = name ? name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "").slice(0, 15) : "love";
+  const randomStr = Math.random().toString(36).substring(2, 8);
+  return `${prefix || "love"}-${randomStr}`;
+}
+giftRouter.get("/:slug", async (req, res) => {
+  try {
+    const rawSlug = req.params.slug;
+    if (!rawSlug || typeof rawSlug !== "string") {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid gift identifier."
+      });
+    }
+    const cleanSlug = rawSlug.toLowerCase().trim();
+    const gift = await Gift.findOne({ slug: cleanSlug }).lean();
+    if (!gift) {
+      return res.status(404).json({
+        success: false,
+        message: "Kh\xF4ng t\xECm th\u1EA5y cu\u1ED1n s\u1ED5 qu\xE0 t\u1EB7ng n\xE0y trong h\u1EC7 th\u1ED1ng."
+      });
+    }
+    return res.status(200).json({
+      success: true,
+      data: gift
+    });
+  } catch (error) {
+    console.error("[Gifts] Error retrieving gift:", error);
+    return res.status(500).json({
+      success: false,
+      message: "L\u1ED7i truy v\u1EA5n c\u01A1 s\u1EDF d\u1EEF li\u1EC7u MongoDB Atlas."
+    });
+  }
+});
+giftRouter.post("/", async (req, res) => {
+  try {
+    const {
+      recipient_name,
+      sender_name,
+      opening_message,
+      messages,
+      closing_message,
+      photos = [],
+      theme_color
+    } = req.body;
+    if (!recipient_name || typeof recipient_name !== "string" || !recipient_name.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: "T\xEAn ng\u01B0\u1EDDi nh\u1EADn kh\xF4ng \u0111\u01B0\u1EE3c \u0111\u1EC3 tr\u1ED1ng."
+      });
+    }
+    if (!sender_name || typeof sender_name !== "string" || !sender_name.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: "T\xEAn ng\u01B0\u1EDDi g\u1EEDi kh\xF4ng \u0111\u01B0\u1EE3c \u0111\u1EC3 tr\u1ED1ng."
+      });
+    }
+    if (!Array.isArray(messages) || messages.filter((m) => typeof m === "string" && m.trim()).length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Vui l\xF2ng nh\u1EADp \xEDt nh\u1EA5t m\u1ED9t l\u1EDDi ch\xFAc y\xEAu th\u01B0\u01A1ng."
+      });
+    }
+    if (!Array.isArray(photos)) {
+      return res.status(400).json({
+        success: false,
+        message: "Danh s\xE1ch \u1EA3nh kh\xF4ng h\u1EE3p l\u1EC7."
+      });
+    }
+    if (photos.length > 30) {
+      return res.status(400).json({
+        success: false,
+        message: "M\u1ED7i m\xF3n qu\xE0 ch\u1EC9 \u0111\u01B0\u1EE3c t\u1ED1i \u0111a 30 \u1EA3nh."
+      });
+    }
+    const processedPhotos = [];
+    for (let i = 0; i < photos.length; i++) {
+      const p = photos[i];
+      let photoUrl = p.url;
+      let publicId = p.publicId || "";
+      if (typeof photoUrl === "string" && photoUrl.startsWith("data:image/")) {
+        try {
+          const matches = photoUrl.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+          if (matches && matches.length === 3) {
+            const mimetype = matches[1];
+            const buffer = Buffer.from(matches[2], "base64");
+            const uploadRes = await uploadImage(buffer, `photo_${i}`, mimetype);
+            photoUrl = uploadRes.url;
+            publicId = uploadRes.publicId || "";
+          }
+        } catch (err) {
+          console.warn("[Gifts] Failed to convert base64 image, skipping:", err.message);
+          continue;
+        }
+      }
+      processedPhotos.push({
+        id: p.id || `photo-${Date.now()}-${i}`,
+        url: photoUrl,
+        displayUrl: typeof p.displayUrl === "string" ? p.displayUrl : photoUrl,
+        deleteUrl: typeof p.deleteUrl === "string" ? p.deleteUrl : "",
+        caption: typeof p.caption === "string" ? p.caption.trim().slice(0, 100) : "",
+        rotation: typeof p.rotation === "number" ? p.rotation : 0,
+        publicId,
+        width: typeof p.width === "number" ? p.width : void 0,
+        height: typeof p.height === "number" ? p.height : void 0,
+        bytes: typeof p.bytes === "number" ? p.bytes : void 0,
+        format: typeof p.format === "string" ? p.format : void 0,
+        order: i
+      });
+    }
+    let slug = generateGiftSlug(recipient_name);
+    let attempts = 0;
+    while (attempts < 5) {
+      const existing = await Gift.findOne({ slug }).select("_id").lean();
+      if (!existing) break;
+      slug = generateGiftSlug(recipient_name);
+      attempts++;
+    }
+    const newGift = await Gift.create({
+      slug,
+      recipient_name: recipient_name.trim(),
+      sender_name: sender_name.trim(),
+      opening_message: (opening_message || "").trim(),
+      messages: messages.map((m) => String(m).trim()).filter(Boolean),
+      closing_message: (closing_message || "").trim(),
+      photos: processedPhotos,
+      theme_color: theme_color || "#C9757C"
+    });
+    console.log(`[Gifts] Created gift "${slug}" for recipient "${newGift.recipient_name}" with ${processedPhotos.length} photos.`);
+    return res.status(201).json({
+      success: true,
+      data: newGift
+    });
+  } catch (error) {
+    console.error("[Gifts] Error creating gift:", error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || "L\u1ED7i l\u01B0u tr\u1EEF qu\xE0 t\u1EB7ng v\xE0o MongoDB Atlas."
+    });
+  }
+});
+
+// server/routes/uploadRoutes.ts
+import { Router as Router2 } from "express";
+import multer from "multer";
+var uploadRouter = Router2();
+var MAX_PHOTOS = 30;
+var MAX_FILE_SIZE = 10 * 1024 * 1024;
+var ALLOWED_MIME_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+var handleSign = (_req, res) => {
+  if (!isCloudinaryConfigured) {
+    return res.status(200).json({
+      success: false,
+      configured: false,
+      message: "Cloudinary is not configured or credentials are invalid. Using server upload fallback."
+    });
+  }
+  try {
+    const signData = generateUploadSignature("love_sketchbook");
+    return res.status(200).json({
+      success: true,
+      configured: true,
+      data: signData
+    });
+  } catch (error) {
+    console.error("[Upload Sign Error]:", error);
+    return res.status(500).json({
+      success: false,
+      configured: false,
+      message: error.message || "Failed to generate Cloudinary signature."
+    });
+  }
+};
+uploadRouter.get("/sign", handleSign);
+uploadRouter.post("/sign", handleSign);
+var storage = multer.memoryStorage();
+var upload = multer({
+  storage,
+  limits: {
+    fileSize: MAX_FILE_SIZE,
+    files: MAX_PHOTOS
+  },
+  fileFilter: (_req, file, cb) => {
+    if (ALLOWED_MIME_TYPES.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error(`Invalid file type "${file.mimetype}". Only JPEG, PNG, WEBP, and GIF are allowed.`));
+    }
+  }
+});
+uploadRouter.post("/", upload.array("photos", MAX_PHOTOS), async (req, res) => {
+  const files = req.files;
+  if (!files || files.length === 0) {
+    return res.status(400).json({
+      success: false,
+      message: "No image files provided for upload."
+    });
+  }
+  const uploadedResults = [];
+  const uploadedPublicIds = [];
+  try {
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const result = await uploadImage(file.buffer, file.originalname, file.mimetype);
+      if (result.publicId) {
+        uploadedPublicIds.push(result.publicId);
+      }
+      uploadedResults.push({
+        id: `photo-${Date.now()}-${i}-${Math.random().toString(36).substring(2, 7)}`,
+        url: result.url,
+        publicId: result.publicId,
+        width: result.width,
+        height: result.height,
+        format: result.format,
+        bytes: result.bytes,
+        originalName: file.originalname
+      });
+    }
+    return res.status(200).json({
+      success: true,
+      data: uploadedResults
+    });
+  } catch (error) {
+    console.error("[Upload] Error uploading files:", error);
+    for (const pid of uploadedPublicIds) {
+      deleteImage(pid).catch((err) => console.warn("[Upload Cleanup Error]:", err));
+    }
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Failed to upload images."
+    });
+  }
+});
+
+// server/app.ts
+var app = express();
+app.set("trust proxy", 1);
+var allowedOrigins = [
+  "http://localhost:3000",
+  "http://localhost:5173",
+  process.env.CLIENT_URL
+].filter(Boolean);
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.includes(origin) || allowedOrigins.includes("*")) {
+        callback(null, true);
+      } else {
+        callback(null, true);
+      }
+    },
+    credentials: true
+  })
+);
+app.use(express.json({ limit: "15mb" }));
+app.use(express.urlencoded({ extended: true, limit: "15mb" }));
+var uploadsDir = path3.resolve(process.cwd(), "uploads");
+if (!fs3.existsSync(uploadsDir)) {
+  fs3.mkdirSync(uploadsDir, { recursive: true });
+}
+app.use("/uploads", express.static(uploadsDir));
+app.use("/api/uploads", express.static(uploadsDir));
+var apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1e3,
+  // 15 minutes
+  max: 300,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: "Too many requests. Please try again later." }
+});
+app.use(async (req, res, next) => {
+  if (req.path.includes("/gifts") || req.path.includes("/health")) {
+    try {
+      await connectDB();
+    } catch (err) {
+      console.error("[Database Middleware Error]:", err.message);
+      return res.status(503).json({
+        success: false,
+        message: "Kh\xF4ng th\u1EC3 k\u1EBFt n\u1ED1i \u0111\u1EBFn c\u01A1 s\u1EDF d\u1EEF li\u1EC7u MongoDB Atlas."
+      });
+    }
+  }
+  next();
+});
+app.use("/api", apiLimiter);
+app.use("/api/gifts", giftRouter);
+app.use("/gifts", giftRouter);
+app.use("/api/upload", uploadRouter);
+app.use("/upload", uploadRouter);
+var handleHealth = (_req, res) => {
+  const isDbConnected = mongoose3.connection.readyState === 1;
+  res.status(isDbConnected ? 200 : 503).json({
+    status: isDbConnected ? "healthy" : "database_disconnected",
+    database: isDbConnected ? "MongoDB Atlas Connected" : "Disconnected",
+    uptime: process.uptime(),
+    timestamp: (/* @__PURE__ */ new Date()).toISOString()
+  });
+};
+app.get("/api/health", handleHealth);
+app.get("/health", handleHealth);
+app.use((err, _req, res, _next) => {
+  console.error("[Server Error]:", err);
+  res.status(err.status || 500).json({
+    success: false,
+    message: err.message || "L\u1ED7i h\u1EC7 th\u1ED1ng m\xE1y ch\u1EE7."
+  });
+});
+var app_default = app;
+export {
+  app,
+  app_default as default
+};
