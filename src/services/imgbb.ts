@@ -54,31 +54,28 @@ export interface ImgbbApiResponse {
 
 export const imgbbService = {
   /**
-   * Retrieves the ImgBB API Key safely from Vite (client) or Node (test) environment
+   * Retrieves the ImgBB API Key safely from Vite environment.
+   * Strictly uses `import.meta.env.VITE_IMGBB_API_KEY` (no `process.env` in browser code).
    */
   getApiKey(): string {
-    const key =
-      (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_IMGBB_API_KEY) ||
-      (typeof process !== 'undefined' && process.env && process.env.VITE_IMGBB_API_KEY) ||
-      '';
+    const rawKey = import.meta.env.VITE_IMGBB_API_KEY;
+    const key = typeof rawKey === 'string' ? rawKey.replace(/['"]/g, '').trim() : '';
 
-    if (!key || key === 'your_imgbb_api_key' || key.trim() === '') {
+    if (!key || key === 'your_imgbb_api_key') {
       throw new Error(
-        'Chưa cấu hình VITE_IMGBB_API_KEY. Vui lòng lấy API Key miễn phí tại https://api.imgbb.com và thêm vào file .env.local hoặc Vercel Environment Variables.'
+        'Chưa cấu hình VITE_IMGBB_API_KEY trên môi trường build (Vercel). Nếu bạn vừa thêm biến trên Vercel, BẮT BUỘC phải vào Deployments > bấm vào dấu 3 chấm (...) > chọn "Redeploy" để Vite nhúng biến vào bản build. Nếu chạy ở localhost, hãy thêm vào file .env.local và khởi động lại Vite.'
       );
     }
-    return key.trim();
+    return key;
   },
 
   /**
    * Checks whether the ImgBB API Key is defined
    */
   isConfigured(): boolean {
-    const key =
-      (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_IMGBB_API_KEY) ||
-      (typeof process !== 'undefined' && process.env && process.env.VITE_IMGBB_API_KEY) ||
-      '';
-    return Boolean(key && key !== 'your_imgbb_api_key' && key.trim() !== '');
+    const rawKey = import.meta.env.VITE_IMGBB_API_KEY;
+    const key = typeof rawKey === 'string' ? rawKey.replace(/['"]/g, '').trim() : '';
+    return Boolean(key && key !== 'your_imgbb_api_key');
   },
 
   /**
@@ -118,9 +115,11 @@ export const imgbbService = {
       });
     } catch (netErr: any) {
       if (netErr.name === 'AbortError') {
-        throw new Error(`Tải ảnh "${file.name}" quá thời gian chờ (timeout). Vui lòng kiểm tra lại mạng.`);
+        throw new Error(`Tải ảnh "${file.name}" quá thời gian chờ (timeout sau 45s). Vui lòng kiểm tra lại mạng.`);
       }
-      throw new Error(`Lỗi kết nối khi tải ảnh "${file.name}" lên ImgBB: ${netErr.message}`);
+      throw new Error(
+        `Lỗi kết nối khi tải ảnh "${file.name}" lên ImgBB: ${netErr.message || 'Mạng không ổn định hoặc tiện ích chặn quảng cáo/tracker đã chặn kết nối tới api.imgbb.com.'}`
+      );
     } finally {
       clearTimeout(timeoutId);
     }
@@ -129,12 +128,23 @@ export const imgbbService = {
     try {
       json = await response.json();
     } catch {
-      throw new Error(`Phản hồi không hợp lệ từ máy chủ ImgBB (HTTP ${response.status}).`);
+      throw new Error(`Máy chủ ImgBB phản hồi không hợp lệ (HTTP ${response.status}). Vui lòng thử lại sau.`);
     }
 
     if (!response.ok || !json.success || !json.data || !json.data.url) {
-      const errMsg = json.error?.message || `Lỗi HTTP ${response.status} từ ImgBB`;
-      throw new Error(`Tải ảnh "${file.name}" thất bại: ${errMsg}`);
+      const errCode = json.error?.code || json.status || response.status;
+      const rawErrMsg = json.error?.message || `Lỗi HTTP ${response.status} từ ImgBB`;
+
+      let friendlyNote = '';
+      if (rawErrMsg.toLowerCase().includes('invalid api key') || errCode === 100) {
+        friendlyNote = ' (Khóa API Key không hợp lệ hoặc đã bị vô hiệu hóa trên ImgBB. Vui lòng kiểm tra lại key tại https://api.imgbb.com)';
+      } else if (response.status === 429) {
+        friendlyNote = ' (Đã vượt quá giới hạn lượt tải ảnh lên ImgBB trong khoảng thời gian này. Vui lòng thử lại sau)';
+      } else if (response.status === 400) {
+        friendlyNote = ' (Dữ liệu ảnh không hợp lệ hoặc ImgBB từ chối xử lý)';
+      }
+
+      throw new Error(`Tải ảnh "${file.name}" lên ImgBB thất bại: ${rawErrMsg}${friendlyNote}`);
     }
 
     return {

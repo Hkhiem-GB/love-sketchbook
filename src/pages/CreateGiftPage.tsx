@@ -6,7 +6,7 @@ import { QrSharePanel } from '../components/creator/QrSharePanel';
 import { PencilButton } from '../components/ui/PencilButton';
 import { DoodleHeart, DoodleFlower, DoodleLeaf, DoodlePencil } from '../components/ui/DoodleDecorations';
 import { giftService } from '../services/gifts';
-import { Plus, Trash2, Sparkles, Loader2, Heart, ExternalLink } from 'lucide-react';
+import { Plus, Trash2, Sparkles, Loader2, Heart, ExternalLink, AlertTriangle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 export const CreateGiftPage: React.FC = () => {
@@ -28,6 +28,7 @@ export const CreateGiftPage: React.FC = () => {
   // Status states
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [uploadStatus, setUploadStatus] = useState<string | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [createdGift, setCreatedGift] = useState<GiftData | null>(null);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [activeStep, setActiveStep] = useState<'form' | 'created'>('form');
@@ -86,6 +87,7 @@ export const CreateGiftPage: React.FC = () => {
 
     setIsSubmitting(true);
     setUploadStatus('Đang chuẩn bị ảnh...');
+    setSubmitError(null);
 
     try {
       const savedGift = await giftService.createGift(
@@ -110,7 +112,9 @@ export const CreateGiftPage: React.FC = () => {
       setActiveStep('created');
     } catch (err: any) {
       console.error('Lỗi tạo món quà:', err);
-      alert(err.message || 'Đã xảy ra lỗi khi lưu món quà. Vui lòng thử lại.');
+      const msg = err.message || 'Đã xảy ra lỗi khi lưu món quà. Vui lòng thử lại.';
+      setSubmitError(msg);
+      alert(msg);
     } finally {
       setIsSubmitting(false);
       setUploadStatus(null);
@@ -332,6 +336,27 @@ export const CreateGiftPage: React.FC = () => {
                   maxPhotos={30}
                 />
               </div>
+
+              {/* ERROR BANNER IF UPLOAD OR CREATION FAILS */}
+              {submitError && (
+                <div className="bg-paper-white sketch-border border-pencil-rose p-4 text-pencil-graphite flex items-start gap-3 shadow-sketch">
+                  <div className="w-8 h-8 rounded-full bg-pencil-rose/10 flex items-center justify-center text-pencil-rose shrink-0 mt-0.5">
+                    <AlertTriangle size={18} />
+                  </div>
+                  <div className="flex-1 font-hand text-sm sm:text-base leading-relaxed">
+                    <strong className="text-pencil-rose block mb-1 font-bold">Chưa thể tạo món quà:</strong>
+                    <span>{submitError}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSubmitError(null)}
+                    className="text-pencil-lead hover:text-pencil-rose text-sm font-hand px-2 py-0.5"
+                    title="Đóng thông báo"
+                  >
+                    ✕
+                  </button>
+                </div>
+              )}
 
               {/* ACTION & SUBMIT BAR */}
               <div className="bg-paper-white sketch-border shadow-sketch p-6 flex flex-col sm:flex-row items-center justify-between gap-4">
