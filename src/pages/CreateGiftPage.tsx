@@ -27,6 +27,7 @@ export const CreateGiftPage: React.FC = () => {
 
   // Status states
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState<string | null>(null);
   const [createdGift, setCreatedGift] = useState<GiftData | null>(null);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [activeStep, setActiveStep] = useState<'form' | 'created'>('form');
@@ -84,23 +85,35 @@ export const CreateGiftPage: React.FC = () => {
     }
 
     setIsSubmitting(true);
+    setUploadStatus('Đang chuẩn bị ảnh...');
+
     try {
-      const savedGift = await giftService.createGift({
-        recipient_name: recipientName.trim(),
-        sender_name: senderName.trim(),
-        opening_message: openingMessage.trim(),
-        messages: messages.filter((m) => m.trim().length > 0),
-        closing_message: closingMessage.trim(),
-        photos,
-      });
+      const savedGift = await giftService.createGift(
+        {
+          recipient_name: recipientName.trim(),
+          sender_name: senderName.trim(),
+          opening_message: openingMessage.trim(),
+          messages: messages.filter((m) => m.trim().length > 0),
+          closing_message: closingMessage.trim(),
+          photos,
+        },
+        (completed, total, currentName) => {
+          if (total > 0) {
+            setUploadStatus(`Đang tải ảnh lên ImgBB (${completed}/${total}): ${currentName || ''}...`);
+          } else {
+            setUploadStatus('Đang lưu thông tin vào MongoDB Atlas...');
+          }
+        }
+      );
 
       setCreatedGift(savedGift);
       setActiveStep('created');
     } catch (err: any) {
       console.error('Lỗi tạo món quà:', err);
-      alert(err.message || 'Đã xảy ra lỗi khi lưu món quà vào MongoDB Atlas. Vui lòng thử lại.');
+      alert(err.message || 'Đã xảy ra lỗi khi lưu món quà. Vui lòng thử lại.');
     } finally {
       setIsSubmitting(false);
+      setUploadStatus(null);
     }
   };
 
@@ -324,6 +337,12 @@ export const CreateGiftPage: React.FC = () => {
               <div className="bg-paper-white sketch-border shadow-sketch p-6 flex flex-col sm:flex-row items-center justify-between gap-4">
                 <div className="font-hand text-pencil-lead text-sm text-center sm:text-left">
                   <span>✨ Đã sẵn sàng {photos.length} bức ảnh và {messages.length} lời thương.</span>
+                  {uploadStatus && (
+                    <div className="flex items-center gap-2 text-pencil-rose font-bold mt-1 animate-pulse">
+                      <Loader2 size={14} className="animate-spin" />
+                      <span>{uploadStatus}</span>
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex items-center gap-3">
@@ -343,7 +362,7 @@ export const CreateGiftPage: React.FC = () => {
                     disabled={isSubmitting}
                     icon={isSubmitting ? <Loader2 size={18} className="animate-spin" /> : <Heart size={18} fill="#FFFDF8" />}
                   >
-                    {isSubmitting ? 'Đang tạo món quà...' : 'Tạo món quà'}
+                    {isSubmitting ? (uploadStatus ? 'Đang tải ảnh...' : 'Đang xử lý...') : 'Tạo món quà'}
                   </PencilButton>
                 </div>
               </div>

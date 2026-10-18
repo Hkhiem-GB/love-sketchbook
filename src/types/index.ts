@@ -4,6 +4,12 @@ export interface PhotoItem {
   caption?: string;
   rotation?: number; // slight hand-pasted rotation angle in degrees (-4 to 4)
   file?: File; // temporary for upload
+  displayUrl?: string;
+  deleteUrl?: string;
+  width?: number;
+  height?: number;
+  bytes?: number;
+  format?: string;
 }
 
 export interface GiftData {

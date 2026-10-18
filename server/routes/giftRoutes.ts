@@ -141,9 +141,15 @@ giftRouter.post('/', async (req: Request, res: Response) => {
       processedPhotos.push({
         id: p.id || `photo-${Date.now()}-${i}`,
         url: photoUrl,
+        displayUrl: typeof p.displayUrl === 'string' ? p.displayUrl : photoUrl,
+        deleteUrl: typeof p.deleteUrl === 'string' ? p.deleteUrl : '',
         caption: typeof p.caption === 'string' ? p.caption.trim().slice(0, 100) : '',
         rotation: typeof p.rotation === 'number' ? p.rotation : 0,
         publicId,
+        width: typeof p.width === 'number' ? p.width : undefined,
+        height: typeof p.height === 'number' ? p.height : undefined,
+        bytes: typeof p.bytes === 'number' ? p.bytes : undefined,
+        format: typeof p.format === 'string' ? p.format : undefined,
         order: i,
       });
     }

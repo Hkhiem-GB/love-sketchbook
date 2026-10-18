@@ -182,3 +182,55 @@ export const DoodleArrow: React.FC<{
     />
   </svg>
 );
+
+// Hand-drawn Music Note SVG
+export const DoodleMusicNote: React.FC<{
+  className?: string;
+  fill?: string;
+  stroke?: string;
+  size?: number;
+}> = ({ className = '', fill = '#C9757C', stroke = '#5E514B', size = 24 }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 40 40"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+    className={`inline-block ${className}`}
+  >
+    <path
+      d="M14 27C14 29.5 11.5 31.5 8.5 31.5C5.5 31.5 3.5 29.5 3.5 27C3.5 24.5 6 22.5 9 22.5C10.5 22.5 12 23.2 13 24.2V9.5C13 8.5 13.8 7.8 14.8 8L28.8 10.5C29.5 10.6 30 11.2 30 12V23C30 25.5 27.5 27.5 24.5 27.5C21.5 27.5 19.5 25.5 19.5 23C19.5 20.5 22 18.5 25 18.5C26.5 18.5 28 19.2 29 20.2V13.2L14 10.7V27Z"
+      fill={fill}
+      stroke={stroke}
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
+
+// Hand-drawn Vinyl / Record Disc SVG
+export const DoodleVinyl: React.FC<{
+  className?: string;
+  labelColor?: string;
+  size?: number;
+}> = ({ className = '', labelColor = '#C9757C', size = 32 }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 50 50"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+    className={`inline-block ${className}`}
+  >
+    {/* Outer vinyl disc */}
+    <circle cx="25" cy="25" r="22" fill="#3A322D" stroke="#5E514B" strokeWidth="2" />
+    {/* Concentric sound grooves */}
+    <circle cx="25" cy="25" r="18" stroke="#5E514B" strokeWidth="1" strokeDasharray="5 3" opacity="0.6" />
+    <circle cx="25" cy="25" r="14" stroke="#5E514B" strokeWidth="1" strokeDasharray="6 2" opacity="0.5" />
+    {/* Center label */}
+    <circle cx="25" cy="25" r="8.5" fill={labelColor} stroke="#5E514B" strokeWidth="1.5" />
+    {/* Center spindle hole */}
+    <circle cx="25" cy="25" r="2.2" fill="#F7F1E5" stroke="#3A322D" strokeWidth="1" />
+  </svg>
+);

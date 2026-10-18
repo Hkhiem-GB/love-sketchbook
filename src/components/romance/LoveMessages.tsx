@@ -129,7 +129,7 @@ export const LoveMessages: React.FC<LoveMessagesProps> = ({
               ? 'Hiện hết chữ'
               : currentIndex < messages.length - 1
               ? 'Tiếp tục'
-              : 'Xem Cây Tình Yêu'}
+              : 'Xem quà'}
           </PencilButton>
         </div>
       </div>

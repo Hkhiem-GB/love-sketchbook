@@ -6,6 +6,8 @@ export interface IPhoto {
   caption?: string;
   rotation?: number;
   publicId?: string;
+  displayUrl?: string;
+  deleteUrl?: string;
   width?: number;
   height?: number;
   format?: string;
@@ -34,12 +36,14 @@ const PhotoSubSchema = new Schema<IPhoto>(
       required: true,
       validate: {
         validator: (v: string) => !v.startsWith('data:image/'),
-        message: 'Base64 image strings are not allowed in MongoDB documents. Images must be stored in Cloudinary or file storage.',
+        message: 'Base64 image strings are not allowed in MongoDB documents. Images must be hosted externally (ImgBB).',
       },
     },
     caption: { type: String, default: '', maxlength: 100 },
     rotation: { type: Number, default: 0 },
     publicId: { type: String, default: '' },
+    displayUrl: { type: String, default: '' },
+    deleteUrl: { type: String, default: '' },
     width: { type: Number },
     height: { type: Number },
     format: { type: String },

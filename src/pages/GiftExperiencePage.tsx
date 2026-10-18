@@ -6,6 +6,7 @@ import { BalloonGame } from '../components/game/BalloonGame';
 import { LoveMessages } from '../components/romance/LoveMessages';
 import { RomanceExperience } from '../components/romance/RomanceExperience';
 import { DoodleHeart, DoodleFlower } from '../components/ui/DoodleDecorations';
+import { BackgroundMusicPlayer } from '../components/ui/BackgroundMusicPlayer';
 import { giftService } from '../services/gifts';
 import { Loader2, AlertCircle, RefreshCw } from 'lucide-react';
 
@@ -17,6 +18,17 @@ export const GiftExperiencePage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [currentStep, setCurrentStep] = useState<ExperienceStep>('game');
+  const [musicPlaying, setMusicPlaying] = useState(false);
+
+  const handleGameComplete = () => {
+    setCurrentStep('messages');
+    setMusicPlaying(true);
+  };
+
+  const handleReplay = () => {
+    setCurrentStep('game');
+    setMusicPlaying(false);
+  };
 
   const fetchGift = async () => {
     setLoading(true);
@@ -102,50 +114,56 @@ export const GiftExperiencePage: React.FC = () => {
     );
   }
 
-  // STEP 3: FULLSCREEN 100% VIEWPORT 3D ROMANCE EXPERIENCE
-  if (currentStep === 'tree') {
-    return (
-      <div className="w-full h-screen h-[100dvh] bg-paper overflow-hidden relative select-none">
-        <RomanceExperience
-          gift={gift}
-          onReplay={() => setCurrentStep('game')}
-        />
-        {/* Discreet watermark */}
-        <div className="absolute bottom-1 right-4 pointer-events-none opacity-40 font-hand text-xs text-pencil-lead flex items-center gap-1 z-30">
-          <span>Một nét vẽ, ngàn yêu thương</span>
-          <DoodleHeart size={12} fill="#C9757C" />
-        </div>
-      </div>
-    );
-  }
-
-  // STEP 1 & 2: Balloon Game & Love Messages
+  // STEPS: 1 (Balloon Game) -> 2 (Love Messages) -> 3 (3D Tree & Photo Gallery)
+  // BackgroundMusicPlayer remains mounted so the music loops continuously across steps 2 and 3!
   return (
-    <div className="min-h-screen min-h-[100dvh] bg-paper py-4 px-2 sm:px-6 flex flex-col justify-between">
-      <main className="max-w-5xl w-full mx-auto flex-1 flex flex-col justify-center">
-        {currentStep === 'game' && (
-          <div className="w-full">
-            <BalloonGame onComplete={() => setCurrentStep('messages')} targetScore={20} />
-          </div>
-        )}
+    <>
+      <BackgroundMusicPlayer
+        isPlaying={musicPlaying}
+        onTogglePlay={(playing) => setMusicPlaying(playing)}
+        songTitle="Đừng Làm Trái Tim Anh Đau - Obito (remake)"
+      />
 
-        {currentStep === 'messages' && (
-          <div className="w-full animate-float">
-            <LoveMessages
-              messages={gift.messages}
-              recipientName={gift.recipient_name}
-              senderName={gift.sender_name}
-              onComplete={() => setCurrentStep('tree')}
-            />
+      {currentStep === 'tree' ? (
+        <div className="w-full h-screen h-[100dvh] bg-paper overflow-hidden relative select-none">
+          <RomanceExperience
+            gift={gift}
+            onReplay={handleReplay}
+          />
+          {/* Discreet watermark */}
+          <div className="absolute bottom-1 right-4 pointer-events-none opacity-40 font-hand text-xs text-pencil-lead flex items-center gap-1 z-30">
+            <span>Một nét vẽ, ngàn yêu thương</span>
+            <DoodleHeart size={12} fill="#C9757C" />
           </div>
-        )}
-      </main>
+        </div>
+      ) : (
+        <div className="min-h-screen min-h-[100dvh] bg-paper py-4 px-2 sm:px-6 flex flex-col justify-between">
+          <main className="max-w-5xl w-full mx-auto flex-1 flex flex-col justify-center">
+            {currentStep === 'game' && (
+              <div className="w-full">
+                <BalloonGame onComplete={handleGameComplete} targetScore={20} />
+              </div>
+            )}
 
-      {/* Subtle Footer */}
-      <footer className="text-center py-2 font-hand text-pencil-lead text-xs sm:text-sm flex items-center justify-center gap-1.5 opacity-70">
-        <span>Được vẽ bằng tình yêu & sự trân trọng</span>
-        <DoodleHeart size={14} fill="#C9757C" />
-      </footer>
-    </div>
+            {currentStep === 'messages' && (
+              <div className="w-full animate-float">
+                <LoveMessages
+                  messages={gift.messages}
+                  recipientName={gift.recipient_name}
+                  senderName={gift.sender_name}
+                  onComplete={() => setCurrentStep('tree')}
+                />
+              </div>
+            )}
+          </main>
+
+          {/* Subtle Footer */}
+          <footer className="text-center py-2 font-hand text-pencil-lead text-xs sm:text-sm flex items-center justify-center gap-1.5 opacity-70">
+            <span>Được vẽ bằng tình yêu & sự trân trọng</span>
+            <DoodleHeart size={14} fill="#C9757C" />
+          </footer>
+        </div>
+      )}
+    </>
   );
 };
