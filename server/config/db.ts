@@ -48,30 +48,36 @@ export function getMongoUri(): string {
   return uri;
 }
 
-export async function connectDB(): Promise<void> {
-  const uri = getMongoUri();
+let cachedConn: typeof mongoose | null = null;
 
-  // Mask credentials for secure logging
+/**
+ * Connect to MongoDB Atlas with connection caching for Serverless & Long-running runtimes
+ */
+export async function connectDB(): Promise<typeof mongoose> {
+  // 1. If connection is already open, reuse it immediately (serverless warm start)
+  if (mongoose.connection.readyState === 1) {
+    return mongoose;
+  }
+
+  // 2. If connection is currently in progress, wait for it
+  if (mongoose.connection.readyState === 2) {
+    await new Promise((resolve) => {
+      mongoose.connection.once('connected', resolve);
+    });
+    return mongoose;
+  }
+
+  const uri = getMongoUri();
   const maskedUri = uri.replace(/\/\/([^:]+):([^@]+)@/, '//$1:****@');
   console.log(`[Database] Connecting to MongoDB Atlas (${maskedUri})...`);
 
   try {
-    mongoose.connection.on('connected', () => {
-      console.log(`[Database] MongoDB Atlas connected successfully to database "${mongoose.connection.name}".`);
-    });
-
-    mongoose.connection.on('error', (err) => {
-      console.error('[Database] MongoDB connection error:', err.message);
-    });
-
-    mongoose.connection.on('disconnected', () => {
-      console.warn('[Database] MongoDB disconnected. Attempting to reconnect...');
-    });
-
-    await mongoose.connect(uri, {
+    cachedConn = await mongoose.connect(uri, {
       serverSelectionTimeoutMS: 8000,
-      autoIndex: true, // Build indexes in development
+      autoIndex: process.env.NODE_ENV !== 'production',
     });
+    console.log(`[Database] Connected successfully to database "${mongoose.connection.name}".`);
+    return cachedConn;
   } catch (err: any) {
     console.error('[Database] Fatal: Unable to connect to MongoDB Atlas:', err.message);
     throw err;

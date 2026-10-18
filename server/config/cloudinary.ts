@@ -47,7 +47,39 @@ export interface UploadResult {
 }
 
 /**
- * Save image to local disk
+ * Generate signed upload parameters for direct client-to-Cloudinary upload.
+ * This completely bypasses Vercel 4.5MB request limit and avoids server timeouts!
+ */
+export function generateUploadSignature(folder: string = 'love_sketchbook'): {
+  signature: string;
+  timestamp: number;
+  apiKey: string;
+  cloudName: string;
+  folder: string;
+} {
+  if (!isCloudinaryConfigured) {
+    throw new Error('Cloudinary is not configured with valid credentials.');
+  }
+
+  const timestamp = Math.round(new Date().getTime() / 1000);
+  const paramsToSign = {
+    folder,
+    timestamp,
+  };
+
+  const signature = cloudinary.utils.api_sign_request(paramsToSign, apiSecret);
+
+  return {
+    signature,
+    timestamp,
+    apiKey,
+    cloudName,
+    folder,
+  };
+}
+
+/**
+ * Save image to local disk (fallback for local development)
  */
 async function saveLocally(
   buffer: Buffer,
