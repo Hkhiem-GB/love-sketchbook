@@ -28,10 +28,10 @@ export const HandDrawnFrame: React.FC<HandDrawnFrameProps> = ({
   }[tapeColor];
 
   const sizeClasses = {
-    xs: 'w-20 sm:w-24 p-1.5 pb-3',
-    sm: 'w-24 sm:w-32 p-2 pb-4',
-    md: 'w-32 sm:w-40 p-2.5 pb-5',
-    lg: 'w-48 sm:w-56 p-3 pb-7',
+    xs: 'w-14 sm:w-16 md:w-20 p-1 pb-1.5 sm:p-1.5 sm:pb-2.5',
+    sm: 'w-16 sm:w-20 md:w-24 p-1 pb-2 sm:p-1.5 sm:pb-3',
+    md: 'w-20 sm:w-26 md:w-30 p-1.5 pb-2.5 sm:p-2 sm:pb-3.5',
+    lg: 'w-26 sm:w-34 md:w-40 p-2 pb-3 sm:p-2.5 sm:pb-5',
   }[size];
 
   return (
@@ -56,9 +56,12 @@ export const HandDrawnFrame: React.FC<HandDrawnFrameProps> = ({
         />
       </div>
 
-      {/* Handwritten caption - crisp and legible */}
+      {/* Handwritten caption - crisp, legible, and cleanly truncated */}
       {caption && (
-        <p className="mt-1.5 text-center font-hand text-pencil-graphite text-xs sm:text-sm font-medium truncate px-0.5">
+        <p
+          className="mt-1 text-center font-hand text-pencil-graphite text-[11px] sm:text-xs font-medium truncate px-0.5"
+          title={caption}
+        >
           {caption}
         </p>
       )}

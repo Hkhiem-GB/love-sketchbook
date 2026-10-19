@@ -111,7 +111,17 @@ export function createPolaroidTexture(
     ctx.fillStyle = '#5E514B';
     ctx.font = 'bold 30px "Patrick Hand", "Caveat", cursive, sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText(captionText, width / 2, height - 70);
+
+    // Ensure caption fits gracefully without text overflow
+    let displayCaption = captionText;
+    const maxCaptionWidth = width - 100;
+    if (ctx.measureText(displayCaption).width > maxCaptionWidth) {
+      while (displayCaption.length > 2 && ctx.measureText(displayCaption + '...').width > maxCaptionWidth) {
+        displayCaption = displayCaption.slice(0, -1);
+      }
+      displayCaption += '...';
+    }
+    ctx.fillText(displayCaption, width / 2, height - 70);
 
     // Little heart or flower doodle at bottom right
     ctx.fillStyle = '#C9757C';

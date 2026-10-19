@@ -396,8 +396,10 @@ export const CreateGiftPage: React.FC = () => {
         <div className="fixed inset-0 bg-[#5E514B]/70 backdrop-blur-xs z-50 flex items-center justify-center p-2 sm:p-6">
           <div className="bg-paper sketch-border shadow-2xl w-full max-w-5xl max-h-[90vh] overflow-y-auto p-4 sm:p-6 relative">
             <button
+              type="button"
               onClick={() => setShowPreviewModal(false)}
-              className="absolute top-4 right-4 bg-paper-white sketch-btn w-9 h-9 flex items-center justify-center text-pencil-graphite hover:text-pencil-rose z-50"
+              aria-label="Đóng xem trước"
+              className="absolute top-3 right-3 sm:top-4 sm:right-4 bg-paper-white sketch-btn min-w-[40px] min-h-[40px] w-10 h-10 flex items-center justify-center text-pencil-graphite hover:text-pencil-rose z-50 text-base"
             >
               ✕
             </button>

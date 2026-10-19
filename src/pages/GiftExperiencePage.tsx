@@ -8,7 +8,7 @@ import { RomanceExperience } from '../components/romance/RomanceExperience';
 import { DoodleHeart, DoodleFlower } from '../components/ui/DoodleDecorations';
 import { BackgroundMusicPlayer } from '../components/ui/BackgroundMusicPlayer';
 import { giftService } from '../services/gifts';
-import { Loader2, AlertCircle, RefreshCw } from 'lucide-react';
+import { Loader2, AlertCircle, RefreshCw, FastForward } from 'lucide-react';
 
 export const GiftExperiencePage: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
@@ -19,6 +19,7 @@ export const GiftExperiencePage: React.FC = () => {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [currentStep, setCurrentStep] = useState<ExperienceStep>('game');
   const [musicPlaying, setMusicPlaying] = useState(false);
+  const [treeDrawn, setTreeDrawn] = useState(false);
 
   const handleGameComplete = () => {
     setCurrentStep('messages');
@@ -28,6 +29,7 @@ export const GiftExperiencePage: React.FC = () => {
   const handleReplay = () => {
     setCurrentStep('game');
     setMusicPlaying(false);
+    setTreeDrawn(false);
   };
 
   const fetchGift = async () => {
@@ -122,6 +124,34 @@ export const GiftExperiencePage: React.FC = () => {
         isPlaying={musicPlaying}
         onTogglePlay={(playing) => setMusicPlaying(playing)}
         songTitle="Đừng Làm Trái Tim Anh Đau - Obito (remake)"
+        titleBanner={
+          currentStep === 'tree' && gift ? (
+            <div className="flex flex-col items-center pointer-events-auto text-center">
+              <div className="inline-flex items-center gap-1.5 sm:gap-2 bg-paper-white/95 sketch-border shadow-sketch px-3 sm:px-5 py-1 sm:py-1.5 mb-1 transform rotate-0.5 backdrop-blur-xs max-w-[92vw] sm:max-w-none">
+                <DoodleFlower size={18} petalColor="#DDA0A5" />
+                <h2 className="font-serif italic font-bold text-base sm:text-2xl text-pencil-rose truncate sm:whitespace-normal">
+                  Cây Tình Yêu Của {gift.recipient_name}
+                </h2>
+                <DoodleHeart size={16} fill="#C9757C" />
+              </div>
+
+              <p className="font-hand text-pencil-graphite text-xs sm:text-base max-w-xs sm:max-w-lg mx-auto drop-shadow-xs px-2 line-clamp-2 sm:line-clamp-none">
+                {gift.closing_message || 'Từng bức ảnh là một chiếc lá, từng nụ cười là một bông hoa nở rộ...'}
+              </p>
+
+              {!treeDrawn && (
+                <button
+                  type="button"
+                  onClick={() => setTreeDrawn(true)}
+                  className="mt-1 inline-flex items-center gap-1 font-hand text-xs text-pencil-lead hover:text-pencil-rose transition-colors py-0.5 px-2 bg-paper-white/80 sketch-border-subtle rounded-xs pointer-events-auto"
+                >
+                  <FastForward size={12} />
+                  <span>Mở vòng ảnh 3D ngay</span>
+                </button>
+              )}
+            </div>
+          ) : undefined
+        }
       />
 
       {currentStep === 'tree' ? (
@@ -129,6 +159,9 @@ export const GiftExperiencePage: React.FC = () => {
           <RomanceExperience
             gift={gift}
             onReplay={handleReplay}
+            treeDrawn={treeDrawn}
+            onTreeDrawnChange={setTreeDrawn}
+            hideTitleBanner={true}
           />
           {/* Discreet watermark */}
           <div className="absolute bottom-1 right-4 pointer-events-none opacity-40 font-hand text-xs text-pencil-lead flex items-center gap-1 z-30">

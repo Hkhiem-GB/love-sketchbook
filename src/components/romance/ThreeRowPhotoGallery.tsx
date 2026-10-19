@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { PhotoItem } from '../../types';
 import { HandDrawnFrame } from '../ui/HandDrawnFrame';
-import { DoodleHeart, DoodleFlower } from '../ui/DoodleDecorations';
-import { X, ZoomIn } from 'lucide-react';
+import { ZoomIn } from 'lucide-react';
+import { PhotoLightboxModal } from '../ui/PhotoLightboxModal';
 
 interface ThreeRowPhotoGalleryProps {
   photos: PhotoItem[];
@@ -94,7 +94,7 @@ export const ThreeRowPhotoGallery: React.FC<ThreeRowPhotoGalleryProps> = ({
         }`}
       >
         <div
-          className={`flex items-center justify-center gap-3 sm:gap-5 md:gap-7 px-3 py-2 w-full max-w-full overflow-x-auto scrollbar-none select-none ${
+          className={`flex items-center justify-center gap-2 sm:gap-4 md:gap-7 px-2 sm:px-3 py-1.5 sm:py-2 w-full max-w-full overflow-x-auto scrollbar-none select-none ${
             // Slight horizontal stagger offset between rows for organic sketchbook feel
             rowIndex === 1 ? 'sm:translate-x-2' : rowIndex === 2 ? 'sm:-translate-x-2' : ''
           }`}
@@ -172,51 +172,10 @@ export const ThreeRowPhotoGallery: React.FC<ThreeRowPhotoGalleryProps> = ({
       {/* ======================================================== */}
       {/* LIGHTBOX MODAL: Xem ảnh lớn dạng scrapbook */}
       {/* ======================================================== */}
-      {selectedPhoto && (
-        <div
-          className="fixed inset-0 bg-[#5E514B]/70 backdrop-blur-xs z-50 flex items-center justify-center p-4 select-none"
-          onClick={() => setSelectedPhoto(null)}
-        >
-          <div
-            className="relative bg-paper-white sketch-border shadow-2xl p-4 sm:p-6 pb-8 max-w-md w-full animate-float"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Washi tape at top */}
-            <div className="washi-tape washi-tape-pink" />
-
-            {/* Close button */}
-            <button
-              onClick={() => setSelectedPhoto(null)}
-              className="absolute -top-3 -right-3 bg-paper-white sketch-btn w-9 h-9 flex items-center justify-center text-pencil-graphite hover:text-pencil-rose z-30"
-            >
-              <X size={18} />
-            </button>
-
-            {/* Large Polaroid Image - 100% Crisp, No Blur, Full Opacity */}
-            <div className="relative aspect-4/3 w-full overflow-hidden bg-[#FAF6ED] border border-[#5E514B]/40 rounded-xs mb-4">
-              <img
-                src={selectedPhoto.url}
-                alt={selectedPhoto.caption || 'Kỷ niệm'}
-                className="w-full h-full object-cover"
-              />
-            </div>
-
-            {/* Caption & Sketch Details */}
-            <div className="text-center">
-              <h4 className="font-hand text-xl sm:text-2xl text-pencil-rose font-bold mb-1">
-                {selectedPhoto.caption || 'Khoảnh khắc ngọt ngào'}
-              </h4>
-              <div className="flex items-center justify-center gap-2 mt-2 opacity-70">
-                <DoodleFlower size={18} petalColor="#DDA0A5" />
-                <span className="font-hand text-pencil-lead text-sm">
-                  Lưu giữ trong cuốn sổ yêu thương
-                </span>
-                <DoodleHeart size={16} fill="#C9757C" />
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <PhotoLightboxModal
+        photo={selectedPhoto}
+        onClose={() => setSelectedPhoto(null)}
+      />
     </div>
   );
 };

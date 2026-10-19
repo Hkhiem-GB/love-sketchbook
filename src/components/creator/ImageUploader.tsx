@@ -2,6 +2,7 @@ import React, { useRef } from 'react';
 import { PhotoItem } from '../../types';
 import { DoodleHeart, DoodleFlower } from '../ui/DoodleDecorations';
 import { Upload, X, Trash2, Image as ImageIcon } from 'lucide-react';
+import { PhotoLightboxModal } from '../ui/PhotoLightboxModal';
 
 interface ImageUploaderProps {
   photos: PhotoItem[];
@@ -50,6 +51,7 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({
 }) => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [warningMessage, setWarningMessage] = React.useState<string | null>(null);
+  const [previewingPhoto, setPreviewingPhoto] = React.useState<PhotoItem | null>(null);
 
   const handleFiles = async (files: FileList | null) => {
     if (!files) return;
@@ -160,30 +162,36 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({
             </button>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 max-h-[360px] overflow-y-auto p-2 border border-pencil-graphite/20 bg-paper-white/40 rounded-sm">
+          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2 sm:gap-2.5 max-h-[340px] overflow-y-auto p-2 border border-pencil-graphite/20 bg-paper-white/40 rounded-sm">
             {photos.map((photo, idx) => (
               <div
                 key={photo.id}
                 style={{ transform: `rotate(${photo.rotation || 0}deg)` }}
-                className="relative bg-paper-white sketch-border-subtle p-2 pb-3 shadow-xs transition-transform hover:scale-105 group"
+                className="relative bg-paper-white sketch-border-subtle p-1.5 pb-2.5 sm:p-2 sm:pb-3 shadow-xs transition-transform hover:scale-105 group"
               >
                 {/* Delete button */}
                 <button
+                  type="button"
                   onClick={(e) => {
                     e.stopPropagation();
                     removePhoto(photo.id);
                   }}
-                  className="absolute -top-1.5 -right-1.5 w-6 h-6 rounded-full bg-pencil-rose text-paper-white flex items-center justify-center text-xs opacity-80 hover:opacity-100 z-10"
+                  title="Xóa ảnh"
+                  className="absolute -top-1.5 -right-1.5 w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-pencil-rose text-paper-white flex items-center justify-center text-xs opacity-85 hover:opacity-100 hover:scale-110 active:scale-95 transition-all z-10 shadow-xs"
                 >
                   <X size={12} />
                 </button>
 
-                {/* Photo Thumbnail */}
-                <div className="aspect-square w-full overflow-hidden bg-gray-100 rounded-xs mb-1.5">
+                {/* Photo Thumbnail - tap to preview enlarged */}
+                <div
+                  onClick={() => setPreviewingPhoto(photo)}
+                  title="Chạm để xem phóng to ảnh"
+                  className="aspect-square w-full overflow-hidden bg-[#FAF6ED] border border-[#5E514B]/20 rounded-xs mb-1 cursor-pointer hover:opacity-90 transition-opacity"
+                >
                   <img
                     src={photo.url}
                     alt={photo.caption || `Ảnh ${idx + 1}`}
-                    className="w-full h-full object-cover"
+                    className="w-full h-full object-cover pointer-events-none"
                   />
                 </div>
 
@@ -193,13 +201,19 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({
                   value={photo.caption || ''}
                   onChange={(e) => updateCaption(photo.id, e.target.value)}
                   placeholder="Chú thích..."
-                  className="w-full text-center font-hand text-xs text-pencil-graphite bg-transparent border-b border-transparent hover:border-pencil-graphite/30 focus:border-pencil-rose outline-hidden px-1"
+                  className="w-full text-center font-hand text-[11px] sm:text-xs text-pencil-graphite bg-transparent border-b border-transparent hover:border-pencil-graphite/30 focus:border-pencil-rose outline-hidden px-0.5 truncate focus:overflow-visible transition-colors"
                 />
               </div>
             ))}
           </div>
         </div>
       )}
+
+      {/* Lightbox Modal for Photo Preview */}
+      <PhotoLightboxModal
+        photo={previewingPhoto}
+        onClose={() => setPreviewingPhoto(null)}
+      />
     </div>
   );
 };

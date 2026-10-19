@@ -10,59 +10,76 @@ interface RomanceExperienceProps {
   gift: GiftData;
   onReplay?: () => void;
   skipTreeAnimation?: boolean;
+  treeDrawn?: boolean;
+  onTreeDrawnChange?: (drawn: boolean) => void;
+  hideTitleBanner?: boolean;
 }
 
 export const RomanceExperience: React.FC<RomanceExperienceProps> = ({
   gift,
   onReplay,
   skipTreeAnimation = false,
+  treeDrawn: externalTreeDrawn,
+  onTreeDrawnChange,
+  hideTitleBanner = false,
 }) => {
-  const [treeDrawn, setTreeDrawn] = useState(skipTreeAnimation);
+  const [internalTreeDrawn, setInternalTreeDrawn] = useState(skipTreeAnimation);
+  const isTreeDrawn = externalTreeDrawn !== undefined ? externalTreeDrawn : internalTreeDrawn;
 
   const handleSkipAnimation = () => {
-    setTreeDrawn(true);
+    if (onTreeDrawnChange) {
+      onTreeDrawnChange(true);
+    } else {
+      setInternalTreeDrawn(true);
+    }
   };
 
   const handleReplayAll = () => {
-    setTreeDrawn(false);
+    if (onTreeDrawnChange) {
+      onTreeDrawnChange(false);
+    } else {
+      setInternalTreeDrawn(false);
+    }
     onReplay?.();
   };
 
   return (
     <div className="relative w-full h-full h-screen h-[100dvh] overflow-hidden select-none bg-paper">
-      {/* Top Greeting Title Banner (Floating Header Overlay) */}
-      <div className="absolute top-2 sm:top-4 left-0 right-0 z-30 flex flex-col items-center pointer-events-none px-4 text-center">
-        <div className="pointer-events-auto inline-flex items-center gap-2 bg-paper-white/95 sketch-border shadow-sketch px-5 py-1.5 mb-1 transform rotate-0.5 backdrop-blur-xs">
-          <DoodleFlower size={18} petalColor="#DDA0A5" />
-          <h2 className="font-serif italic font-bold text-lg sm:text-2xl text-pencil-rose">
-            Cây Tình Yêu Của {gift.recipient_name}
-          </h2>
-          <DoodleHeart size={16} fill="#C9757C" />
+      {/* Top Greeting Title Banner (Rendered here only if not provided by unified player header) */}
+      {!hideTitleBanner && (
+        <div className="absolute top-2 sm:top-4 left-0 right-0 z-30 flex flex-col items-center pointer-events-none px-4 text-center">
+          <div className="pointer-events-auto inline-flex items-center gap-2 bg-paper-white/95 sketch-border shadow-sketch px-5 py-1.5 mb-1 transform rotate-0.5 backdrop-blur-xs">
+            <DoodleFlower size={18} petalColor="#DDA0A5" />
+            <h2 className="font-serif italic font-bold text-lg sm:text-2xl text-pencil-rose">
+              Cây Tình Yêu Của {gift.recipient_name}
+            </h2>
+            <DoodleHeart size={16} fill="#C9757C" />
+          </div>
+
+          <p className="pointer-events-auto font-hand text-pencil-graphite text-xs sm:text-base max-w-lg mx-auto drop-shadow-xs">
+            {gift.closing_message || 'Từng bức ảnh là một chiếc lá, từng nụ cười là một bông hoa nở rộ...'}
+          </p>
+
+          {/* Fast forward button during tree drawing */}
+          {!isTreeDrawn && (
+            <button
+              onClick={handleSkipAnimation}
+              className="pointer-events-auto mt-1 inline-flex items-center gap-1 font-hand text-xs text-pencil-lead hover:text-pencil-rose transition-colors py-0.5 px-2 bg-paper-white/80 sketch-border-subtle rounded-xs"
+            >
+              <FastForward size={12} />
+              <span>Mở vòng ảnh 3D ngay</span>
+            </button>
+          )}
         </div>
-
-        <p className="pointer-events-auto font-hand text-pencil-graphite text-xs sm:text-base max-w-lg mx-auto drop-shadow-xs">
-          {gift.closing_message || 'Từng bức ảnh là một chiếc lá, từng nụ cười là một bông hoa nở rộ...'}
-        </p>
-
-        {/* Fast forward button during tree drawing */}
-        {!treeDrawn && (
-          <button
-            onClick={handleSkipAnimation}
-            className="pointer-events-auto mt-1 inline-flex items-center gap-1 font-hand text-xs text-pencil-lead hover:text-pencil-rose transition-colors py-0.5 px-2 bg-paper-white/80 sketch-border-subtle rounded-xs"
-          >
-            <FastForward size={12} />
-            <span>Mở vòng ảnh 3D ngay</span>
-          </button>
-        )}
-      </div>
+      )}
 
       {/* Main Romance 3D Stage: 100% Fullscreen Viewport */}
       <div className="absolute inset-0 w-full h-full z-10 flex items-center justify-center">
         {/* Stage 1: Live Pencil Drawing Animation */}
-        {!treeDrawn && (
+        {!isTreeDrawn && (
           <div className="flex items-center justify-center w-full h-full animate-sway">
             <DrawnLoveTree
-              onAnimationComplete={() => setTreeDrawn(true)}
+              onAnimationComplete={handleSkipAnimation}
               skipAnimation={false}
               className="w-[340px] sm:w-[460px] md:w-[540px] aspect-square"
             />
@@ -70,7 +87,7 @@ export const RomanceExperience: React.FC<RomanceExperienceProps> = ({
         )}
 
         {/* Stage 2, 3, 4: Interactive 3D WebGL Gallery with Real Depth Occlusion & Inertia */}
-        {treeDrawn && (
+        {isTreeDrawn && (
           <ThreeGallery3D
             photos={gift.photos}
             treeReady={true}
