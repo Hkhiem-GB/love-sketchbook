@@ -38,13 +38,13 @@ app.use(
 app.use(express.json({ limit: '15mb' }));
 app.use(express.urlencoded({ extended: true, limit: '15mb' }));
 
-// Middleware: Static file serving for uploads (when Cloudinary is not used)
+// Middleware: Static file serving for uploads (only if directory already exists on disk, e.g. local dev)
+// NEVER call fs.mkdirSync on Vercel as /var/task is a read-only filesystem!
 const uploadsDir = path.resolve(process.cwd(), 'uploads');
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
+if (fs.existsSync(uploadsDir)) {
+  app.use('/uploads', express.static(uploadsDir));
+  app.use('/api/uploads', express.static(uploadsDir));
 }
-app.use('/uploads', express.static(uploadsDir));
-app.use('/api/uploads', express.static(uploadsDir));
 
 // Rate limiters to prevent API abuse
 const apiLimiter = rateLimit({

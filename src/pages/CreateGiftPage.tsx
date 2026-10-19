@@ -68,21 +68,12 @@ export const CreateGiftPage: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!recipientName.trim()) {
-      alert('Vui lòng nhập tên người nhận.');
+      setSubmitError('Vui lòng nhập tên người nhận.');
       return;
     }
     if (messages.every((m) => !m.trim())) {
-      alert('Vui lòng nhập ít nhất một lời chúc.');
+      setSubmitError('Vui lòng nhập ít nhất một lời chúc yêu thương.');
       return;
-    }
-
-    if (photos.length === 0) {
-      const wantToUpload = window.confirm(
-        'Bạn chưa chọn bức ảnh kỷ niệm nào để tạo vòng ảnh 3D quanh Cây Tình Yêu. Bạn có muốn chọn ảnh trước khi tạo không?'
-      );
-      if (wantToUpload) {
-        return;
-      }
     }
 
     setIsSubmitting(true);
@@ -114,7 +105,6 @@ export const CreateGiftPage: React.FC = () => {
       console.error('Lỗi tạo món quà:', err);
       const msg = err.message || 'Đã xảy ra lỗi khi lưu món quà. Vui lòng thử lại.';
       setSubmitError(msg);
-      alert(msg);
     } finally {
       setIsSubmitting(false);
       setUploadStatus(null);

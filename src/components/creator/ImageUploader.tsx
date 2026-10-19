@@ -49,14 +49,21 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({
   maxPhotos = 30,
 }) => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [warningMessage, setWarningMessage] = React.useState<string | null>(null);
 
   const handleFiles = async (files: FileList | null) => {
     if (!files) return;
 
     const remainingSlots = maxPhotos - photos.length;
     if (remainingSlots <= 0) {
-      alert(`Đã đạt giới hạn tối đa ${maxPhotos} ảnh.`);
+      setWarningMessage(`Đã đạt giới hạn tối đa ${maxPhotos} ảnh.`);
       return;
+    }
+
+    if (files.length > remainingSlots) {
+      setWarningMessage(`Chỉ có thể nhận thêm ${remainingSlots} ảnh (tối đa ${maxPhotos} ảnh).`);
+    } else {
+      setWarningMessage(null);
     }
 
     const filesToProcess = Array.from(files).slice(0, remainingSlots);
@@ -121,6 +128,20 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({
           Hỗ trợ tối đa {maxPhotos} ảnh kỷ niệm • Đã chọn {photos.length}/{maxPhotos}
         </p>
       </div>
+
+      {/* Warning Notification */}
+      {warningMessage && (
+        <div className="mt-3 p-3 bg-paper-white sketch-border-subtle border-pencil-rose text-pencil-rose text-sm font-hand flex items-center justify-between shadow-sketch-sm">
+          <span>⚠️ {warningMessage}</span>
+          <button
+            type="button"
+            onClick={() => setWarningMessage(null)}
+            className="text-pencil-lead hover:text-pencil-rose px-1 text-xs"
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       {/* Selected Photos Grid Preview */}
       {photos.length > 0 && (

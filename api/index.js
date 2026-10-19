@@ -1,8 +1,8 @@
 // server/app.ts
 import express from "express";
 import cors from "cors";
-import path3 from "path";
-import fs3 from "fs";
+import path2 from "path";
+import fs2 from "fs";
 import rateLimit from "express-rate-limit";
 import mongoose3 from "mongoose";
 
@@ -187,120 +187,6 @@ var GiftSchema = new Schema(
 );
 var Gift = mongoose2.models.Gift || mongoose2.model("Gift", GiftSchema);
 
-// server/config/cloudinary.ts
-import { v2 as cloudinary } from "cloudinary";
-import fs2 from "fs";
-import path2 from "path";
-var cloudName = process.env.CLOUDINARY_CLOUD_NAME || "";
-var apiKey = process.env.CLOUDINARY_API_KEY || "";
-var apiSecret = process.env.CLOUDINARY_API_SECRET || "";
-var hasIdenticalKeyAndSecret = apiKey && apiSecret && apiKey === apiSecret;
-var isCloudinaryConfigured = Boolean(
-  cloudName && apiKey && apiSecret && cloudName !== "your_cloud_name" && !hasIdenticalKeyAndSecret
-);
-if (hasIdenticalKeyAndSecret) {
-  console.warn(
-    "\n\u26A0\uFE0F  [Storage Warning] CLOUDINARY_API_SECRET \u0111ang b\u1ECB \u0111i\u1EC1n tr\xF9ng v\u1EDBi CLOUDINARY_API_KEY!\n   Tr\xEAn Cloudinary Dashboard, API Secret l\xE0 m\u1ED9t chu\u1ED7i k\xFD t\u1EF1 ng\u1EABu nhi\xEAn (ch\u1EEF v\xE0 s\u1ED1),\n   kh\xE1c v\u1EDBi API Key (d\xE3y s\u1ED1 15 ch\u1EEF s\u1ED1). H\u1EC7 th\u1ED1ng s\u1EBD t\u1EA1m d\xF9ng local storage (/uploads/photos).\n"
-  );
-}
-if (isCloudinaryConfigured) {
-  cloudinary.config({
-    cloud_name: cloudName,
-    api_key: apiKey,
-    api_secret: apiSecret,
-    secure: true
-  });
-  console.log("[Storage] Cloudinary configured successfully.");
-} else {
-  console.log("[Storage] Cloudinary not configured or invalid credentials. Using local server storage (/uploads/photos).");
-}
-function generateUploadSignature(folder = "love_sketchbook") {
-  if (!isCloudinaryConfigured) {
-    throw new Error("Cloudinary is not configured with valid credentials.");
-  }
-  const timestamp = Math.round((/* @__PURE__ */ new Date()).getTime() / 1e3);
-  const paramsToSign = {
-    folder,
-    timestamp
-  };
-  const signature = cloudinary.utils.api_sign_request(paramsToSign, apiSecret);
-  return {
-    signature,
-    timestamp,
-    apiKey,
-    cloudName,
-    folder
-  };
-}
-async function saveLocally(buffer, originalFilename, mimetype) {
-  const uploadsDir2 = path2.resolve(process.cwd(), "uploads", "photos");
-  if (!fs2.existsSync(uploadsDir2)) {
-    fs2.mkdirSync(uploadsDir2, { recursive: true });
-  }
-  const ext = path2.extname(originalFilename) || (mimetype.includes("png") ? ".png" : ".jpg");
-  const filename = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}${ext}`;
-  const filePath = path2.join(uploadsDir2, filename);
-  await fs2.promises.writeFile(filePath, buffer);
-  return {
-    url: `/uploads/photos/${filename}`,
-    publicId: filename,
-    bytes: buffer.length,
-    format: ext.replace(".", "")
-  };
-}
-async function uploadImage(buffer, originalFilename, mimetype) {
-  if (isCloudinaryConfigured) {
-    try {
-      return await new Promise((resolve, reject) => {
-        const uploadStream = cloudinary.uploader.upload_stream(
-          {
-            folder: "love_sketchbook",
-            resource_type: "image"
-          },
-          (error, result) => {
-            if (error || !result) {
-              return reject(error || new Error("Upload to Cloudinary failed"));
-            }
-            resolve({
-              url: result.secure_url,
-              publicId: result.public_id,
-              width: result.width,
-              height: result.height,
-              format: result.format,
-              bytes: result.bytes
-            });
-          }
-        );
-        uploadStream.end(buffer);
-      });
-    } catch (err) {
-      console.warn("[Storage] Cloudinary upload error:", err.message);
-      console.warn("[Storage] Falling back to local storage for this upload...");
-      return await saveLocally(buffer, originalFilename, mimetype);
-    }
-  }
-  return await saveLocally(buffer, originalFilename, mimetype);
-}
-async function deleteImage(publicId) {
-  if (!publicId) return;
-  if (isCloudinaryConfigured) {
-    try {
-      await cloudinary.uploader.destroy(publicId);
-    } catch (err) {
-      console.warn("[Storage] Failed to delete image from Cloudinary:", err.message);
-    }
-  } else {
-    try {
-      const localPath = path2.resolve(process.cwd(), "uploads", "photos", publicId);
-      if (fs2.existsSync(localPath)) {
-        await fs2.promises.unlink(localPath);
-      }
-    } catch (err) {
-      console.warn("[Storage] Failed to delete local image file:", err.message);
-    }
-  }
-}
-
 // server/routes/giftRoutes.ts
 var giftRouter = Router();
 function generateGiftSlug(name) {
@@ -381,31 +267,27 @@ giftRouter.post("/", async (req, res) => {
     const processedPhotos = [];
     for (let i = 0; i < photos.length; i++) {
       const p = photos[i];
-      let photoUrl = p.url;
-      let publicId = p.publicId || "";
-      if (typeof photoUrl === "string" && photoUrl.startsWith("data:image/")) {
-        try {
-          const matches = photoUrl.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
-          if (matches && matches.length === 3) {
-            const mimetype = matches[1];
-            const buffer = Buffer.from(matches[2], "base64");
-            const uploadRes = await uploadImage(buffer, `photo_${i}`, mimetype);
-            photoUrl = uploadRes.url;
-            publicId = uploadRes.publicId || "";
-          }
-        } catch (err) {
-          console.warn("[Gifts] Failed to convert base64 image, skipping:", err.message);
-          continue;
-        }
+      const photoUrl = typeof p?.url === "string" ? p.url.trim() : "";
+      if (photoUrl.startsWith("data:image/") || photoUrl.startsWith("data:")) {
+        return res.status(400).json({
+          success: false,
+          message: `\u1EA2nh th\u1EE9 ${i + 1} \u0111ang \u1EDF \u0111\u1ECBnh d\u1EA1ng Base64. T\u1EA5t c\u1EA3 \u1EA3nh ph\u1EA3i \u0111\u01B0\u1EE3c t\u1EA3i tr\u1EF1c ti\u1EBFp l\xEAn ImgBB t\u1EEB tr\xECnh duy\u1EC7t tr\u01B0\u1EDBc khi t\u1EA1o qu\xE0.`
+        });
+      }
+      if (!photoUrl) {
+        return res.status(400).json({
+          success: false,
+          message: `\u1EA2nh th\u1EE9 ${i + 1} kh\xF4ng c\xF3 \u0111\u01B0\u1EDDng d\u1EABn URL h\u1EE3p l\u1EC7.`
+        });
       }
       processedPhotos.push({
         id: p.id || `photo-${Date.now()}-${i}`,
         url: photoUrl,
-        displayUrl: typeof p.displayUrl === "string" ? p.displayUrl : photoUrl,
-        deleteUrl: typeof p.deleteUrl === "string" ? p.deleteUrl : "",
+        displayUrl: typeof p.displayUrl === "string" && p.displayUrl.trim() ? p.displayUrl.trim() : photoUrl,
+        deleteUrl: typeof p.deleteUrl === "string" ? p.deleteUrl.trim() : "",
         caption: typeof p.caption === "string" ? p.caption.trim().slice(0, 100) : "",
         rotation: typeof p.rotation === "number" ? p.rotation : 0,
-        publicId,
+        publicId: typeof p.publicId === "string" ? p.publicId.trim() : "",
         width: typeof p.width === "number" ? p.width : void 0,
         height: typeof p.height === "number" ? p.height : void 0,
         bytes: typeof p.bytes === "number" ? p.bytes : void 0,
@@ -447,94 +329,32 @@ giftRouter.post("/", async (req, res) => {
 
 // server/routes/uploadRoutes.ts
 import { Router as Router2 } from "express";
-import multer from "multer";
 var uploadRouter = Router2();
-var MAX_PHOTOS = 30;
-var MAX_FILE_SIZE = 10 * 1024 * 1024;
-var ALLOWED_MIME_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
-var handleSign = (_req, res) => {
-  if (!isCloudinaryConfigured) {
-    return res.status(200).json({
-      success: false,
-      configured: false,
-      message: "Cloudinary is not configured or credentials are invalid. Using server upload fallback."
-    });
-  }
-  try {
-    const signData = generateUploadSignature("love_sketchbook");
-    return res.status(200).json({
-      success: true,
-      configured: true,
-      data: signData
-    });
-  } catch (error) {
-    console.error("[Upload Sign Error]:", error);
-    return res.status(500).json({
-      success: false,
-      configured: false,
-      message: error.message || "Failed to generate Cloudinary signature."
-    });
-  }
-};
-uploadRouter.get("/sign", handleSign);
-uploadRouter.post("/sign", handleSign);
-var storage = multer.memoryStorage();
-var upload = multer({
-  storage,
-  limits: {
-    fileSize: MAX_FILE_SIZE,
-    files: MAX_PHOTOS
-  },
-  fileFilter: (_req, file, cb) => {
-    if (ALLOWED_MIME_TYPES.includes(file.mimetype)) {
-      cb(null, true);
-    } else {
-      cb(new Error(`Invalid file type "${file.mimetype}". Only JPEG, PNG, WEBP, and GIF are allowed.`));
-    }
-  }
+uploadRouter.get("/", (_req, res) => {
+  return res.status(200).json({
+    success: true,
+    provider: "imgbb",
+    directUpload: true,
+    maxPhotos: 30,
+    message: "H\u1EC7 th\u1ED1ng s\u1EED d\u1EE5ng ImgBB API. \u1EA2nh \u0111\u01B0\u1EE3c t\u1EA3i tr\u1EF1c ti\u1EBFp t\u1EEB tr\xECnh duy\u1EC7t c\u1EE7a ng\u01B0\u1EDDi d\xF9ng l\xEAn ImgBB."
+  });
 });
-uploadRouter.post("/", upload.array("photos", MAX_PHOTOS), async (req, res) => {
-  const files = req.files;
-  if (!files || files.length === 0) {
-    return res.status(400).json({
-      success: false,
-      message: "No image files provided for upload."
-    });
-  }
-  const uploadedResults = [];
-  const uploadedPublicIds = [];
-  try {
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      const result = await uploadImage(file.buffer, file.originalname, file.mimetype);
-      if (result.publicId) {
-        uploadedPublicIds.push(result.publicId);
-      }
-      uploadedResults.push({
-        id: `photo-${Date.now()}-${i}-${Math.random().toString(36).substring(2, 7)}`,
-        url: result.url,
-        publicId: result.publicId,
-        width: result.width,
-        height: result.height,
-        format: result.format,
-        bytes: result.bytes,
-        originalName: file.originalname
-      });
-    }
-    return res.status(200).json({
-      success: true,
-      data: uploadedResults
-    });
-  } catch (error) {
-    console.error("[Upload] Error uploading files:", error);
-    for (const pid of uploadedPublicIds) {
-      deleteImage(pid).catch((err) => console.warn("[Upload Cleanup Error]:", err));
-    }
-    return res.status(500).json({
-      success: false,
-      message: error.message || "Failed to upload images."
-    });
-  }
+var handleLegacySign = (_req, res) => {
+  return res.status(200).json({
+    success: false,
+    configured: false,
+    provider: "imgbb",
+    message: "D\u1EF1 \xE1n \u0111\xE3 chuy\u1EC3n sang ImgBB. Kh\xF4ng c\u1EA7n t\u1EA1o ch\u1EEF k\xFD (signature) qua m\xE1y ch\u1EE7."
+  });
+};
+uploadRouter.get("/sign", handleLegacySign);
+uploadRouter.post("/sign", handleLegacySign);
+uploadRouter.post("/", (_req, res) => {
+  return res.status(400).json({
+    success: false,
+    provider: "imgbb",
+    message: "T\u1EA3i \u1EA3nh qua m\xE1y ch\u1EE7 \u0111\xE3 b\u1ECB v\xF4 hi\u1EC7u h\xF3a. T\u1EA5t c\u1EA3 \u1EA3nh ph\u1EA3i \u0111\u01B0\u1EE3c t\u1EA3i tr\u1EF1c ti\u1EBFp t\u1EEB tr\xECnh duy\u1EC7t l\xEAn ImgBB."
+  });
 });
 
 // server/app.ts
@@ -559,12 +379,11 @@ app.use(
 );
 app.use(express.json({ limit: "15mb" }));
 app.use(express.urlencoded({ extended: true, limit: "15mb" }));
-var uploadsDir = path3.resolve(process.cwd(), "uploads");
-if (!fs3.existsSync(uploadsDir)) {
-  fs3.mkdirSync(uploadsDir, { recursive: true });
+var uploadsDir = path2.resolve(process.cwd(), "uploads");
+if (fs2.existsSync(uploadsDir)) {
+  app.use("/uploads", express.static(uploadsDir));
+  app.use("/api/uploads", express.static(uploadsDir));
 }
-app.use("/uploads", express.static(uploadsDir));
-app.use("/api/uploads", express.static(uploadsDir));
 var apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1e3,
   // 15 minutes

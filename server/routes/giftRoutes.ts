@@ -1,7 +1,5 @@
 import { Router, Request, Response } from 'express';
 import { Gift, IPhoto } from '../models/Gift';
-import { uploadImage } from '../config/cloudinary';
-
 export const giftRouter = Router();
 
 // Helper to generate a clean, safe, unguessable slug
@@ -112,40 +110,39 @@ giftRouter.post('/', async (req: Request, res: Response) => {
       });
     }
 
-    // 2. Process photos: Convert any base64 Data URLs to storage files
-    // (Ensuring ZERO base64 is saved in MongoDB)
+    // 2. Process and validate photos
+    // All photos must be hosted externally (e.g. ImgBB direct browser upload or existing storage).
+    // ZERO binary or base64 data is accepted or stored on Vercel/MongoDB.
     const processedPhotos: IPhoto[] = [];
 
     for (let i = 0; i < photos.length; i++) {
       const p = photos[i];
-      let photoUrl = p.url;
-      let publicId = p.publicId || '';
+      const photoUrl = typeof p?.url === 'string' ? p.url.trim() : '';
 
-      // If photo URL is base64 Data URL, decode and upload to storage immediately
-      if (typeof photoUrl === 'string' && photoUrl.startsWith('data:image/')) {
-        try {
-          const matches = photoUrl.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
-          if (matches && matches.length === 3) {
-            const mimetype = matches[1];
-            const buffer = Buffer.from(matches[2], 'base64');
-            const uploadRes = await uploadImage(buffer, `photo_${i}`, mimetype);
-            photoUrl = uploadRes.url;
-            publicId = uploadRes.publicId || '';
-          }
-        } catch (err: any) {
-          console.warn('[Gifts] Failed to convert base64 image, skipping:', err.message);
-          continue;
-        }
+      // Reject raw base64 Data URLs with 400 Bad Request
+      if (photoUrl.startsWith('data:image/') || photoUrl.startsWith('data:')) {
+        return res.status(400).json({
+          success: false,
+          message: `Ảnh thứ ${i + 1} đang ở định dạng Base64. Tất cả ảnh phải được tải trực tiếp lên ImgBB từ trình duyệt trước khi tạo quà.`,
+        });
+      }
+
+      // Reject empty or invalid photo URLs
+      if (!photoUrl) {
+        return res.status(400).json({
+          success: false,
+          message: `Ảnh thứ ${i + 1} không có đường dẫn URL hợp lệ.`,
+        });
       }
 
       processedPhotos.push({
         id: p.id || `photo-${Date.now()}-${i}`,
         url: photoUrl,
-        displayUrl: typeof p.displayUrl === 'string' ? p.displayUrl : photoUrl,
-        deleteUrl: typeof p.deleteUrl === 'string' ? p.deleteUrl : '',
+        displayUrl: typeof p.displayUrl === 'string' && p.displayUrl.trim() ? p.displayUrl.trim() : photoUrl,
+        deleteUrl: typeof p.deleteUrl === 'string' ? p.deleteUrl.trim() : '',
         caption: typeof p.caption === 'string' ? p.caption.trim().slice(0, 100) : '',
         rotation: typeof p.rotation === 'number' ? p.rotation : 0,
-        publicId,
+        publicId: typeof p.publicId === 'string' ? p.publicId.trim() : '',
         width: typeof p.width === 'number' ? p.width : undefined,
         height: typeof p.height === 'number' ? p.height : undefined,
         bytes: typeof p.bytes === 'number' ? p.bytes : undefined,

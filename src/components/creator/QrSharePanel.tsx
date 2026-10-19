@@ -87,6 +87,8 @@ export const QrSharePanel: React.FC<QrSharePanelProps> = ({
       });
   }, [giftUrl, recipientName]);
 
+  const [copyError, setCopyError] = useState(false);
+
   const copyToClipboard = async () => {
     try {
       if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -101,9 +103,11 @@ export const QrSharePanel: React.FC<QrSharePanelProps> = ({
         document.body.removeChild(input);
       }
       setCopied(true);
+      setCopyError(false);
       setTimeout(() => setCopied(false), 2500);
     } catch {
-      alert('Không thể sao chép liên kết, vui lòng sao chép thủ công.');
+      setCopyError(true);
+      setTimeout(() => setCopyError(false), 4000);
     }
   };
 
@@ -201,6 +205,12 @@ export const QrSharePanel: React.FC<QrSharePanelProps> = ({
           {shareSuccess ? 'Đã chia sẻ!' : 'Chia sẻ'}
         </PencilButton>
       </div>
+
+      {copyError && (
+        <p className="font-hand text-xs text-pencil-rose mb-3">
+          Không thể tự động sao chép. Vui lòng nhấn vào "Mở thử món quà" bên dưới rồi sao chép đường link trên trình duyệt.
+        </p>
+      )}
 
       {/* Social Shortcuts */}
       <div className="flex items-center justify-center gap-4 pt-3 border-t border-pencil-graphite/15 font-hand text-xs text-pencil-graphite">
